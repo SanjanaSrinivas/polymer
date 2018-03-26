@@ -1,0 +1,7 @@
+{
+  "name": "trial",
+  "short_name": "trial",
+  "description": "--",
+  "start_url": "/",
+  "display": "standalone"
+}
