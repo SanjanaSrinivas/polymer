@@ -16,6 +16,8 @@
 <link rel="import" href="/bower_components/polymer/lib/utils/gestures.html">
 <link rel="import" href="/bower_components/paper-card/paper-card.html"> 
 <link rel="import" href="/bower_components/paper-toolbar/paper-toolbar.html">
+<link rel="import" href="/bower_components/paper-input/paper-input.html">
+<link rel="import" href="/bower_components/paper-input/paper-textarea.html">
 <link rel="import" href="/bower_components/resizable-panels/resizable-panels.html">
 <link rel="import" href="/bower_components/paper-tooltip/paper-tooltip.html">
 <link rel="import" href="/bower_components/iron-collapse/iron-collapse.html">
@@ -82,6 +84,8 @@
           paper-card{
             color: black;
             width: 100%;
+            word-wrap: break-word;
+            margin-bottom: 10px
           }
           paper-tooltip{
             --paper-tooltip-delay-in: 500;
@@ -107,11 +111,11 @@
             /* height: 100%; */
             /* max-width: 50%  */
           }
-          .card-body{
+          .card-body {
             margin:20px;
           }
-          paper-card {
-            margin-bottom: 10px;
+          #link-to-edit {
+            color: white;
           }
       </style>
     </custom-style>
@@ -156,35 +160,11 @@
                   </paper-card>
             </template>
           </dom-repeat>
-
-          <!-- <paper-card id="viewone">
-            <paper-toolbar on-click="_toggleCollapse">
-                <div slot="top" class="title" id="cardtitle">{{narratives.title}}</div>
-            </paper-toolbar>
-            <paper-tooltip id="cardtooltip" for="cardtitle" position="top">{{narratives.tooltip_text}}</paper-tooltip>
-            <iron-collapse id="collapse">
-              <div id="card-body">
-                  <div class="card-actions" >
-                      <div class="horizontal justified">
-                          <paper-button on-click="openEditor">Edit</paper-button>
-                          <paper-button on-click="seeMore" data-args="#viewone">See More</paper-button>
-                          <paper-button on-click="seeLess" data-args="#viewone">See Less</paper-button>
-                      </div>
-                  </div>
-                  
-                  <div class="card-content" id="cardcontent">{{narratives.text}}</div>
-              </div>
-                
-            </iron-collapse> -->
-            
-                
-          <!-- </paper-card> -->
-
-          
+        
 
           </div>
-          <div class="panel p2" id="editor" hidden$="{{hideEditor}}">
-              <paper-card id="editor">
+          <div class="panel p2" id="editor" hidden$="{{hideEditor}}" edit-state$="{{editState}}">
+              <paper-card>
                   <paper-toolbar>
                       <div slot="top" class="title">Narrative Editor</div>
                   </paper-toolbar>
@@ -197,10 +177,31 @@
                       </div>
                   </div>
 
-                  <div class="card-content" id="editorarea"></div>
-                
+                  <div class="card-content" id="editorarea">
+
+                  </div>
+                  
               </paper-card>
               
+              <paper-card id="link-editor" hidden$="{{hideLinkEditor}}">
+                <div class="card-content">
+                  <h4>
+                    <a id="header"></a>
+                  </h4>
+                  <paper-input id="input" label="Edit the label"></paper-input>
+                  <paper-button on-click="saveLinkLabel">Save</paper-button>
+                </div>
+              </paper-card>
+
+              <div id="text-editor" hidden$="{{hideTextEditor}}">
+                <!-- <div class="card-content"> -->
+                  <paper-textarea id="text-area" label="Edit the text">
+                  </paper-textarea>
+                  <paper-button on-click="saveEditedText"></paper-button>
+                <!-- </div> -->
+              </div>
+              
+
           </div>
         </resizable-panels>
 
@@ -215,8 +216,6 @@
      * @polymer
      */
      
-  
-
     class TrialApp1 extends Polymer.Element {
       static get is() { return 'trial-app-1'; }
       
@@ -225,6 +224,14 @@
           hideEditor: {
             type: Boolean,
             value: true
+          },
+          hideLinkEditor: {
+            type: Boolean,
+            value: true
+          },
+          hideTextEditor: {
+            type: Boolean,
+            value: false
           },
           narratives: {
             type: Array,
@@ -239,107 +246,168 @@
               0: "editor closed",
               1: "editor opened",
               2: "edit links",
-              3: "edit text",
-              4: "recorded edits"
+              3: "edit link label",
+              4: "edit text",
+              5: "recorded edits"
             }
           },
           editState: {
             type: Number,
-            value: 0
+            value: 0,
+            observer: "editStateChange"
+          },
+          linkToEdit: {
+            value: {
+              href: {
+                type: String,
+                value: ""
+              },
+              valueBeforeEdit: {
+                type: String,
+                value: ""
+              },
+              valueAfterEdit: {
+                type: String,
+                value: ""
+              }
+            }
+          },
+          editedLinks: {
+            type: Array,
+            value: []
           }
         };
-        
       }
+    
       seeLess(e){
-        // Old way
-        // var cardid = e.target.getAttribute('data-args');
-        // var card = Polymer.dom(this.root).querySelector(cardid);
-        // $(card).find(".see").hide();
-
-        var identity = e.target.getAttribute('identity');
-        var div = Polymer.dom(this.root).querySelector('.card-content[identity="'+identity+'"]');
-        $(div).find('.see').hide();
+        var identity = e.target.getAttribute("identity");
+        var div = Polymer.dom(this.root).querySelector(".card-content[identity='"+identity+"']");
+        $(div).find(".see").hide();
       }
       seeMore(e){
-        // Old way
-        // var cardid = e.target.getAttribute('data-args');
-        // var card = Polymer.dom(this.root).querySelector(cardid);
-        // $(card).find(".see").show(); 
-
-        var identity = e.target.getAttribute('identity');
-        var div = Polymer.dom(this.root).querySelector('.card-content[identity="'+identity+'"]');
-        $(div).find('.see').show();
+        var identity = e.target.getAttribute("identity");
+        var div = Polymer.dom(this.root).querySelector(".card-content[identity='"+identity+"']");
+        $(div).find(".see").show();
       }
       openEditor(e){
-        // Old way
-        // if(this.hide == true){
-        //   this.$.editor.style.width = "50%";
-        //   this.$.view.style.width = "50%";
-        //   this.$.editorarea.innerHTML = this.$.cardcontent.innerHTML;
-        //   this.hide = false;
-        // }
-        // alert(this.editState);
-        var identity = e.target.getAttribute('identity');
-        if(this.narrativeToEdit != -1){
-          console.log('Some other narrative is blocking');
-          return;
-        }
-        if(this.hideEditor == true){
-          this.narrativeToEdit = identity;
-          this.editState = 1;
-          Polymer.dom(this.root).querySelector('#editor').style.width = "50%";
-          Polymer.dom(this.root).querySelector('#view').style.width = "50%";
-          Polymer.dom(this.root).querySelector('#editorarea').innerHTML = Polymer.dom(this.root).querySelector('.card-content[identity="'+identity+'"]').innerHTML;
-          this.hideEditor = false;
-        }  
-        // alert(this.editState);
+        var identity = e.target.getAttribute("identity");
+        this.narrativeToEdit = identity;
+        this.editState = 1;
       }
       closeEditor(){
-        // Old way
-        // if(this.hideEditor == false){
-        //   this.hideEditor = true;
-        //   this.$.editorarea.innerHTML = "";
-        //   this.$.view.style.width = "100%"; 
-        // }
-        
-        if(this.hideEditor == false){
-          Polymer.dom(this.root).querySelector('#editorarea').innerHTML = "";
-          this.narrativeToEdit = -1;
-          Polymer.dom(this.root).querySelector('#view').style.width = "";
-          Polymer.dom(this.root).querySelector('#editor').style.width = "";
-          this.hideEditor = true;
-        }
-
+        this.editState = 0;
       }
       toggleCollapse(e) {
-        var identity = e.target.getAttribute('identity');
-        var div = Polymer.dom(this.root).querySelector('.card-content[identity="'+identity+'"]');
+        var identity = e.target.getAttribute("identity");
+        var div = Polymer.dom(this.root).querySelector(".card-content[identity='"+identity+"']");
         $(div).html(this.narratives[identity].text);
-        Polymer.dom(this.root).querySelector('iron-collapse[identity="'+identity+'"]').toggle();
-      
+        Polymer.dom(this.root).querySelector("iron-collapse[identity='"+identity+"']").toggle();
       }
       editLinkMode() {
-        var a = this.$.editor;
-        $(a).find("a").css("background-color", "khaki");
-        
-        
+        this.editState = 2;
       }
       editTextMode() {
-        var a = this.$.editor;
-        $(a).find("a").css("background-color", "");
+        this.editState = 4;
+      }
+      saveLinkLabel(e) {
+        this.editState = 2;
+      }
+      saveEditedText(e){
+        this.editState = 1;
       }
       recordEdits() {
-
+        this.editState = 5;
       }
+      editLinkHandler(e){
+        console.log("In the editLinkHandler method");
+        var _self = document.querySelector("trial-app-1");
+        _self.linkToEdit.href = e.target.href;
+        _self.linkToEdit.valueBeforeEdit = e.target.innerHTML;
+        Polymer.dom(_self.root).querySelector("#header").innerHTML = _self.linkToEdit.href;
+        Polymer.dom(_self.root).querySelector("#header").href = _self.linkToEdit.href;
+        Polymer.dom(_self.root).querySelector("#input").value = _self.linkToEdit.valueBeforeEdit;
+        _self.editState = 3;
+        return false;
+      }
+      editStateChange(newValue, oldValue){
+        console.log(newValue+" : "+this.editStateDictionary[newValue]);
+        if(oldValue == 4){
+          // this.hideTextEditor = true;
+        }
+        // Closing the editor
+        if(newValue == 0){
+          Polymer.dom(this.root).querySelector("#editorarea").innerHTML = "";
+          Polymer.dom(this.root).querySelector("#text-editor").innerHTML = "";
+          this.narrativeToEdit = -1;
+          Polymer.dom(this.root).querySelector("#view").style.width = "";
+          Polymer.dom(this.root).querySelector("#editor").style.width = "";
+          this.hideEditor = true;
+        }
+        // Opening the editor
+        else if(newValue == 1){
+          this.hideEditor = false;
+          Polymer.dom(this.root).querySelector("#editor").style.width = "50%";
+          Polymer.dom(this.root).querySelector("#view").style.width = "50%";
+          Polymer.dom(this.root).querySelector("#editorarea").innerHTML = Polymer.dom(this.root).querySelector(".card-content[identity='"+this.narrativeToEdit+"']").innerHTML; 
+        }
+        // Going to 'Edit Links' state
+        else if(newValue == 2){
+          // Coming from 'Edit Link Label' state
+          if(oldValue == 3){
+            var inputTextElement = Polymer.dom(this.root).querySelector("#input");
+            var linkElement = Polymer.dom(this.root).querySelector("#editorarea a[href='"+this.linkToEdit.href+"']");
+            var valueAfterSave = inputTextElement.value;
+            if(valueAfterSave != this.linkToEdit.valueBeforeEdit){
+              this.linkToEdit.valueAfterEdit = valueAfterSave;
+              linkElement.innerHTML = this.linkToEdit.valueAfterEdit;
+              this.editedLinks.push(JSON.parse(JSON.stringify(this.linkToEdit)));
+            }
+            console.log(this.editedLinks);
+            this.hideLinkEditor = true;
+          }
+          
+          var editorArea = Polymer.dom(this.root).querySelector("#editorarea");
+          $(editorArea).find("a").css("color", "red");
+          $(editorArea).find("a").css("text-decoration", "none");
+          $(editorArea).find("a").on("click", this.editLinkHandler);
+        }
+        // Going to 'Edit Link Label' state 
+        else if(newValue == 3){
+          this.hideLinkEditor = false;
+        }
+        // Going to 'Edit Text' state
+        else if(newValue == 4){
+          $(editorArea).find("a").css("color", "");
+          $(editorArea).find("a").css("text-decoration", "");
+          $(editorArea).find("a").off("click");
+          this.hideLinkEditor = true;
+          // var editorArea = Polymer.dom(this.root).querySelector("#editorarea #narrative-dis");
+          // console.log(editorArea.innerHTML);
+          // var textEditor = Polymer.dom(this.root).querySelector("#text-editor");
+          var editorArea = Polymer.dom(this.root).querySelector("#editorarea");
+          var textArea = Polymer.dom(this.root).querySelector("#text-area");
+          console.log(textEditor);
+          console.log(editorArea);
+          console.log(textArea);
+          // var textEditor = this.$.text-area;
+          // console.log(textEditor);
+          
+          // console.log(narrativeDisplay.innerHTML);
+          // textEditor.value = editorArea.innerHTML;
+          this.hideTextEditor = false;
+          
+        }
+        else if(newValue == 5){
+          alert(this.editedLinks);
+        }
+      }
+      
+      
       ready(){
         super.ready();
         var _self = this;
         $.get("/src/trial-app/data_narratives.json", function(data){
-          // _self.$.cardtitle.innerHTML= data[0].title;
-          // _self.$.cardcontent.innerHTML = data[0].text;
-          // _self.$.cardtooltip.innerHTML = data[0].tooltip_text;
           _self.narratives = data;
-          // $(_self.$.cardcontent).html(data[0].text);
         });
       }
         
